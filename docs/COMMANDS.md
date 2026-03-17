@@ -183,6 +183,7 @@ Start next version cycle.
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `name` | No | Milestone name |
+| `--reset-phase-numbers` | No | Restart the new milestone at Phase 1 and archive old phase dirs before roadmapping |
 
 **Prerequisites:** Previous milestone completed
 **Produces:** Updated `PROJECT.md`, new `REQUIREMENTS.md`, new `ROADMAP.md`
@@ -190,6 +191,7 @@ Start next version cycle.
 ```bash
 /gsd:new-milestone                  # Interactive
 /gsd:new-milestone "v2.0 Mobile"    # Named milestone
+/gsd:new-milestone --reset-phase-numbers "v2.0 Mobile"  # Restart milestone numbering at 1
 ```
 
 ---

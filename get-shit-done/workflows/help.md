@@ -192,10 +192,12 @@ Start a new milestone through unified flow.
 - Optional domain research (spawns 4 parallel researcher agents)
 - Requirements definition with scoping
 - Roadmap creation with phase breakdown
+- Optional `--reset-phase-numbers` flag restarts numbering at Phase 1 and archives old phase dirs first for safety
 
 Mirrors `/gsd:new-project` flow for brownfield projects (existing PROJECT.md).
 
 Usage: `/gsd:new-milestone "v2.0 Features"`
+Usage: `/gsd:new-milestone --reset-phase-numbers "v2.0 Features"`
 
 **`/gsd:complete-milestone <version>`**
 Archive completed milestone and prepare for next version.

@@ -907,6 +907,35 @@ describe('cmdInitNewMilestone', () => {
     assert.strictEqual(output2.roadmap_exists, true);
     assert.strictEqual(output2.project_exists, true);
   });
+
+  test('reports latest completed milestone and archive target for reset flow', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'MILESTONES.md'),
+      '# Milestones\n\n## v1.2 Search Refresh (Shipped: 2026-02-18)\n\n---\n'
+    );
+    fs.mkdirSync(path.join(tmpDir, '.planning', 'phases', '06-refine-search'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, '.planning', 'phases', '07-polish'), { recursive: true });
+
+    const result = runGsdTools('init new-milestone', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const output = JSON.parse(result.output);
+    assert.strictEqual(output.latest_completed_milestone, 'v1.2');
+    assert.strictEqual(output.latest_completed_milestone_name, 'Search Refresh');
+    assert.strictEqual(output.phase_dir_count, 2);
+    assert.strictEqual(output.phase_archive_path, '.planning/milestones/v1.2-phases');
+  });
+
+  test('reset flow metadata is null-safe when no milestones file exists', () => {
+    const result = runGsdTools('init new-milestone', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const output = JSON.parse(result.output);
+    assert.strictEqual(output.latest_completed_milestone, null);
+    assert.strictEqual(output.latest_completed_milestone_name, null);
+    assert.strictEqual(output.phase_dir_count, 0);
+    assert.strictEqual(output.phase_archive_path, null);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -7,6 +7,23 @@ const path = require('path');
 const { execSync } = require('child_process');
 const { loadConfig, resolveModelInternal, findPhaseInternal, getRoadmapPhaseInternal, pathExistsInternal, generateSlugInternal, getMilestoneInfo, getMilestonePhaseFilter, stripShippedMilestones, normalizePhaseName, toPosixPath, output, error } = require('./core.cjs');
 
+function getLatestCompletedMilestone(cwd) {
+  const milestonesPath = path.join(cwd, '.planning', 'MILESTONES.md');
+  if (!fs.existsSync(milestonesPath)) return null;
+
+  try {
+    const content = fs.readFileSync(milestonesPath, 'utf-8');
+    const match = content.match(/^##\s+(v[\d.]+)\s+(.+?)\s+\(Shipped:/m);
+    if (!match) return null;
+    return {
+      version: match[1],
+      name: match[2].trim(),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function cmdInitExecutePhase(cwd, phase, raw) {
   if (!phase) {
     error('phase required for init execute-phase');
@@ -221,6 +238,17 @@ function cmdInitNewProject(cwd, raw) {
 function cmdInitNewMilestone(cwd, raw) {
   const config = loadConfig(cwd);
   const milestone = getMilestoneInfo(cwd);
+  const latestCompleted = getLatestCompletedMilestone(cwd);
+  const phasesDir = path.join(cwd, '.planning', 'phases');
+  let phaseDirCount = 0;
+
+  try {
+    if (fs.existsSync(phasesDir)) {
+      phaseDirCount = fs.readdirSync(phasesDir, { withFileTypes: true })
+        .filter(entry => entry.isDirectory())
+        .length;
+    }
+  } catch {}
 
   const result = {
     // Models
@@ -235,6 +263,10 @@ function cmdInitNewMilestone(cwd, raw) {
     // Current milestone
     current_milestone: milestone.version,
     current_milestone_name: milestone.name,
+    latest_completed_milestone: latestCompleted?.version || null,
+    latest_completed_milestone_name: latestCompleted?.name || null,
+    phase_dir_count: phaseDirCount,
+    phase_archive_path: latestCompleted ? `.planning/milestones/${latestCompleted.version}-phases` : null,
 
     // File existence
     project_exists: pathExistsInternal(cwd, '.planning/PROJECT.md'),
