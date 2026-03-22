@@ -1,7 +1,7 @@
 ---
 name: gsd-ui-auditor
 description: Retroactive 6-pillar visual audit of implemented frontend code. Produces scored UI-REVIEW.md. Spawned by /gsd:ui-review orchestrator.
-tools: Read, Write, Bash, Grep, Glob
+tools: Read, Write, Bash, Grep, Glob, mcp__stitch__*
 color: "#F472B6"
 # hooks:
 #   PostToolUse:
@@ -43,7 +43,7 @@ Before auditing, discover project context:
 
 | Section | How You Use It |
 |---------|----------------|
-| Design System | Expected component library and tokens |
+| Design System | Expected component library, tokens, and design source (Stitch/shadcn/manual) |
 | Spacing Scale | Expected spacing values to audit against |
 | Typography | Expected font sizes and weights |
 | Color | Expected 60/30/10 split and accent usage |
@@ -51,6 +51,10 @@ Before auditing, discover project context:
 
 If UI-SPEC.md exists and is approved: audit against it specifically.
 If no UI-SPEC exists: audit against abstract 6-pillar standards.
+
+**.stitch/DESIGN.md** (if exists) — Stitch design system source of truth. Use as additional baseline for color, typography, and component style auditing. Compare implemented components against Stitch-generated reference designs.
+
+**.stitch/designs/*.png** (if exist) — Stitch reference screenshots. Compare implemented UI against these for visual fidelity assessment.
 
 **SUMMARY.md files** — What was built in each plan execution
 **PLAN.md files** — What was intended to be built
@@ -92,24 +96,29 @@ This gate runs unconditionally on every audit. The .gitignore ensures screenshot
 
 ```bash
 # Check for running dev server
-DEV_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 2>/dev/null || echo "000")
+# Try Phoenix (4000), then Node (3000), then Vite (5173), then 8080
+for PORT in 4000 3000 5173 8080; do
+  DEV_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT 2>/dev/null || echo "000")
+  [ "$DEV_STATUS" = "200" ] && DEV_PORT=$PORT && break
+done
+DEV_STATUS=${DEV_STATUS:-000}
 
 if [ "$DEV_STATUS" = "200" ]; then
   SCREENSHOT_DIR=".planning/ui-reviews/${PADDED_PHASE}-$(date +%Y%m%d-%H%M%S)"
   mkdir -p "$SCREENSHOT_DIR"
 
   # Desktop
-  npx playwright screenshot http://localhost:3000 \
+  npx playwright screenshot http://localhost:$DEV_PORT \
     "$SCREENSHOT_DIR/desktop.png" \
     --viewport-size=1440,900 2>/dev/null
 
   # Mobile
-  npx playwright screenshot http://localhost:3000 \
+  npx playwright screenshot http://localhost:$DEV_PORT \
     "$SCREENSHOT_DIR/mobile.png" \
     --viewport-size=375,812 2>/dev/null
 
   # Tablet
-  npx playwright screenshot http://localhost:3000 \
+  npx playwright screenshot http://localhost:$DEV_PORT \
     "$SCREENSHOT_DIR/tablet.png" \
     --viewport-size=768,1024 2>/dev/null
 
@@ -121,7 +130,9 @@ fi
 
 If dev server not detected: audit runs on code review only (Tailwind class audit, string audit for generic labels, state handling check). Note in output that visual screenshots were not captured.
 
-Try port 3000 first, then 5173 (Vite default), then 8080.
+Try port 4000 (Phoenix default) first, then 3000, then 5173 (Vite default), then 8080.
+
+**Stitch reference designs:** Also check for `.stitch/designs/*.png`. If Stitch screenshots exist, load them for side-by-side comparison against the implemented UI. Note in the review whether Stitch reference designs were available.
 
 </screenshot_approach>
 
@@ -141,11 +152,11 @@ Try port 3000 first, then 5173 (Vite default), then 8080.
 
 ```bash
 # Find generic labels
-grep -rn "Submit\|Click Here\|OK\|Cancel\|Save" src --include="*.tsx" --include="*.jsx" 2>/dev/null
+grep -rn "Submit\|Click Here\|OK\|Cancel\|Save" src --include="*.tsx" --include="*.jsx" --include="*.ex" --include="*.heex" 2>/dev/null
 # Find empty state patterns
-grep -rn "No data\|No results\|Nothing\|Empty" src --include="*.tsx" --include="*.jsx" 2>/dev/null
+grep -rn "No data\|No results\|Nothing\|Empty" src --include="*.tsx" --include="*.jsx" --include="*.ex" --include="*.heex" 2>/dev/null
 # Find error patterns
-grep -rn "went wrong\|try again\|error occurred" src --include="*.tsx" --include="*.jsx" 2>/dev/null
+grep -rn "went wrong\|try again\|error occurred" src --include="*.tsx" --include="*.jsx" --include="*.ex" --include="*.heex" 2>/dev/null
 ```
 
 **If UI-SPEC exists:** Compare each declared CTA/empty/error copy against actual strings.
@@ -165,9 +176,9 @@ grep -rn "went wrong\|try again\|error occurred" src --include="*.tsx" --include
 
 ```bash
 # Count accent color usage
-grep -rn "text-primary\|bg-primary\|border-primary" src --include="*.tsx" --include="*.jsx" 2>/dev/null | wc -l
+grep -rn "text-primary\|bg-primary\|border-primary" src --include="*.tsx" --include="*.jsx" --include="*.ex" --include="*.heex" 2>/dev/null | wc -l
 # Check for hardcoded colors
-grep -rn "#[0-9a-fA-F]\{3,8\}\|rgb(" src --include="*.tsx" --include="*.jsx" 2>/dev/null
+grep -rn "#[0-9a-fA-F]\{3,8\}\|rgb(" src --include="*.tsx" --include="*.jsx" --include="*.ex" --include="*.heex" 2>/dev/null
 ```
 
 **If UI-SPEC exists:** Verify accent is only used on declared elements.
@@ -179,9 +190,9 @@ grep -rn "#[0-9a-fA-F]\{3,8\}\|rgb(" src --include="*.tsx" --include="*.jsx" 2>/
 
 ```bash
 # Count distinct font sizes in use
-grep -rohn "text-\(xs\|sm\|base\|lg\|xl\|2xl\|3xl\|4xl\|5xl\)" src --include="*.tsx" --include="*.jsx" 2>/dev/null | sort -u
+grep -rohn "text-\(xs\|sm\|base\|lg\|xl\|2xl\|3xl\|4xl\|5xl\)" src --include="*.tsx" --include="*.jsx" --include="*.ex" --include="*.heex" 2>/dev/null | sort -u
 # Count distinct font weights
-grep -rohn "font-\(thin\|light\|normal\|medium\|semibold\|bold\|extrabold\)" src --include="*.tsx" --include="*.jsx" 2>/dev/null | sort -u
+grep -rohn "font-\(thin\|light\|normal\|medium\|semibold\|bold\|extrabold\)" src --include="*.tsx" --include="*.jsx" --include="*.ex" --include="*.heex" 2>/dev/null | sort -u
 ```
 
 **If UI-SPEC exists:** Verify only declared sizes and weights are used.
@@ -193,9 +204,9 @@ grep -rohn "font-\(thin\|light\|normal\|medium\|semibold\|bold\|extrabold\)" src
 
 ```bash
 # Find spacing classes
-grep -rohn "p-\|px-\|py-\|m-\|mx-\|my-\|gap-\|space-" src --include="*.tsx" --include="*.jsx" 2>/dev/null | sort | uniq -c | sort -rn | head -20
+grep -rohn "p-\|px-\|py-\|m-\|mx-\|my-\|gap-\|space-" src --include="*.tsx" --include="*.jsx" --include="*.ex" --include="*.heex" 2>/dev/null | sort | uniq -c | sort -rn | head -20
 # Check for arbitrary values
-grep -rn "\[.*px\]\|\[.*rem\]" src --include="*.tsx" --include="*.jsx" 2>/dev/null
+grep -rn "\[.*px\]\|\[.*rem\]" src --include="*.tsx" --include="*.jsx" --include="*.ex" --include="*.heex" 2>/dev/null
 ```
 
 **If UI-SPEC exists:** Verify spacing matches declared scale.
@@ -207,11 +218,11 @@ grep -rn "\[.*px\]\|\[.*rem\]" src --include="*.tsx" --include="*.jsx" 2>/dev/nu
 
 ```bash
 # Loading states
-grep -rn "loading\|isLoading\|pending\|skeleton\|Spinner" src --include="*.tsx" --include="*.jsx" 2>/dev/null
+grep -rn "loading\|isLoading\|pending\|skeleton\|Spinner" src --include="*.tsx" --include="*.jsx" --include="*.ex" --include="*.heex" 2>/dev/null
 # Error states
-grep -rn "error\|isError\|ErrorBoundary\|catch" src --include="*.tsx" --include="*.jsx" 2>/dev/null
+grep -rn "error\|isError\|ErrorBoundary\|catch" src --include="*.tsx" --include="*.jsx" --include="*.ex" --include="*.heex" 2>/dev/null
 # Empty states
-grep -rn "empty\|isEmpty\|no.*found\|length === 0" src --include="*.tsx" --include="*.jsx" 2>/dev/null
+grep -rn "empty\|isEmpty\|no.*found\|length === 0" src --include="*.tsx" --include="*.jsx" --include="*.ex" --include="*.heex" 2>/dev/null
 ```
 
 Score based on: loading states present, error boundaries exist, empty states handled, disabled states for actions, confirmation for destructive actions.
@@ -280,7 +291,8 @@ Write to: `$PHASE_DIR/$PADDED_PHASE-UI-REVIEW.md`
 # Phase {N} — UI Review
 
 **Audited:** {date}
-**Baseline:** {UI-SPEC.md / abstract standards}
+**Baseline:** {UI-SPEC.md / .stitch/DESIGN.md / abstract standards}
+**Stitch Reference:** {available (.stitch/designs/) / not available}
 **Screenshots:** {captured / not captured (no dev server)}
 
 ---
@@ -350,11 +362,24 @@ Run the gitignore gate from `<gitignore_gate>`. This MUST happen before step 3.
 
 Run the screenshot approach from `<screenshot_approach>`. Record whether screenshots were captured.
 
+## Step 3.5: Load Stitch Reference Designs
+
+```bash
+# Check for Stitch reference designs
+ls .stitch/designs/*.png .stitch/designs/*.html 2>/dev/null
+ls .stitch/DESIGN.md 2>/dev/null
+```
+
+If Stitch designs exist, read `.stitch/DESIGN.md` for the design system baseline. Load `.stitch/designs/*.png` screenshots as reference for visual comparison.
+
 ## Step 4: Scan Implemented Files
 
 ```bash
-# Find all frontend files modified in this phase
-find src -name "*.tsx" -o -name "*.jsx" -o -name "*.css" -o -name "*.scss" 2>/dev/null
+# Find all frontend files modified in this phase (framework-agnostic)
+find lib -name "*.ex" -path "*/components/*" -o -name "*.heex" 2>/dev/null
+find src -name "*.tsx" -o -name "*.jsx" 2>/dev/null
+find assets -name "*.css" 2>/dev/null
+find src -name "*.css" -o -name "*.scss" 2>/dev/null
 ```
 
 Build list of files to audit.

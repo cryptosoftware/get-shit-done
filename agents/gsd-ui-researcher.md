@@ -1,7 +1,7 @@
 ---
 name: gsd-ui-researcher
-description: Produces UI-SPEC.md design contract for frontend phases. Reads upstream artifacts, detects design system state, asks only unanswered questions. Spawned by /gsd:ui-phase orchestrator.
-tools: Read, Write, Bash, Grep, Glob, WebSearch, WebFetch, mcp__context7__*, mcp__firecrawl__*, mcp__exa__*
+description: Produces UI-SPEC.md design contract for frontend phases. Reads upstream artifacts, detects design system state (Stitch, shadcn, or manual), asks only unanswered questions. Spawned by /gsd:ui-phase orchestrator.
+tools: Read, Write, Bash, Grep, Glob, WebSearch, WebFetch, mcp__context7__*, mcp__firecrawl__*, mcp__exa__*, mcp__stitch__*
 color: "#E879F9"
 # hooks:
 #   PostToolUse:
@@ -21,7 +21,8 @@ If the prompt contains a `<files_to_read>` block, you MUST use the `Read` tool t
 
 **Core responsibilities:**
 - Read upstream artifacts to extract decisions already made
-- Detect design system state (shadcn, existing tokens, component patterns)
+- Detect design system state — **Stitch-first**, then shadcn, then manual tokens
+- If Stitch MCP is available, use it to generate designs and extract tokens from `.stitch/DESIGN.md`
 - Ask ONLY what REQUIREMENTS.md and CONTEXT.md did not already answer
 - Write UI-SPEC.md with the design contract for this phase
 - Return structured result to orchestrator
@@ -88,53 +89,161 @@ Your UI-SPEC.md is consumed by:
 | Priority | Tool | Use For | Trust Level |
 |----------|------|---------|-------------|
 | 1st | Codebase Grep/Glob | Existing tokens, components, styles, config files | HIGH |
-| 2nd | Context7 | Component library API docs, shadcn preset format | HIGH |
-| 3rd | Exa (MCP) | Design pattern references, accessibility standards, semantic research | MEDIUM (verify) |
-| 4th | Firecrawl (MCP) | Deep scrape component library docs, design system references | HIGH (content depends on source) |
-| 5th | WebSearch | Fallback keyword search for ecosystem discovery | Needs verification |
+| 2nd | Stitch MCP | Design generation, design system extraction, screen creation | HIGH |
+| 3rd | Context7 | Component library API docs, framework references | HIGH |
+| 4th | Exa (MCP) | Design pattern references, accessibility standards, semantic research | MEDIUM (verify) |
+| 5th | Firecrawl (MCP) | Deep scrape component library docs, design system references | HIGH (content depends on source) |
+| 6th | WebSearch | Fallback keyword search for ecosystem discovery | Needs verification |
+
+**Stitch MCP:** If available, use `list_projects`, `list_screens`, `get_screen`, `generate_screen_from_text`, and `edit_screens` to create and manage designs. Extract design tokens from generated screens into `.stitch/DESIGN.md` — this becomes the authoritative source for spacing, typography, and color.
 
 **Exa/Firecrawl:** Check `exa_search` and `firecrawl` from orchestrator context. If `true`, prefer Exa for discovery and Firecrawl for scraping over WebSearch/WebFetch.
 
 **Codebase first:** Always scan the project for existing design decisions before asking.
 
 ```bash
-# Detect design system
+# Detect Stitch design system
+ls .stitch/DESIGN.md .stitch/designs/*.html 2>/dev/null
+
+# Detect shadcn (React/Next.js projects)
 ls components.json tailwind.config.* postcss.config.* 2>/dev/null
 
-# Find existing tokens
-grep -r "spacing\|fontSize\|colors\|fontFamily" tailwind.config.* 2>/dev/null
+# Detect Phoenix/LiveView design system
+ls assets/css/app.css lib/*_web/components/core_components.ex 2>/dev/null
 
-# Find existing components
+# Find existing tokens — Tailwind v4 (@theme) or v3 (config)
+grep -r "@theme\|spacing\|fontSize\|colors\|fontFamily" assets/css/app.css tailwind.config.* 2>/dev/null
+
+# Find existing components (framework-agnostic)
+find lib -name "*.ex" -path "*/components/*" 2>/dev/null | head -20
 find src -name "*.tsx" -path "*/components/*" 2>/dev/null | head -20
 
-# Check for shadcn
+# Check for shadcn (React projects only)
 test -f components.json && npx shadcn info 2>/dev/null
 ```
 
 </tool_strategy>
 
-<shadcn_gate>
+<design_system_gate>
 
-## shadcn Initialization Gate
+## Design System Detection Gate
 
-Run this logic before proceeding to design contract questions:
+Run this logic before proceeding to design contract questions. The gate detects available design tools and the project's tech stack, then routes to the best design system path.
 
-**IF `components.json` NOT found AND tech stack is React/Next.js/Vite:**
+### Step 1: Probe Available Design Tools
+
+**Stitch MCP probe (do this FIRST):**
+
+Try calling `list_projects` (or the namespaced equivalent like `mcp__stitch__list_projects`). This is a lightweight read-only call.
+
+- **If it returns a project list** → Stitch MCP is live. Set `STITCH_MCP=true`.
+- **If the tool is not found or errors** → Stitch MCP is not configured. Set `STITCH_MCP=false`.
+
+**Local Stitch assets:**
+
+```bash
+# Existing Stitch design system
+test -f .stitch/DESIGN.md && echo "STITCH_DESIGN=true" || echo "STITCH_DESIGN=false"
+
+# Existing Stitch screens
+STITCH_SCREENS=$(ls .stitch/designs/*.html 2>/dev/null | wc -l)
+```
+
+**Tech stack:**
+
+```bash
+# Phoenix/LiveView?
+test -f mix.exs && grep -q "phoenix" mix.exs 2>/dev/null && echo "STACK=phoenix"
+
+# React/Next.js/Vite?
+test -f package.json && grep -qE "react|next|vite" package.json 2>/dev/null && echo "STACK=react"
+```
+
+**Stitch skills:**
+
+```bash
+# Check for installed stitch skills (symlinked or local)
+ls ~/.claude/skills/stitch-design/SKILL.md .claude/skills/stitch-design/SKILL.md 2>/dev/null && echo "STITCH_SKILLS=true"
+ls ~/.claude/skills/phoenix-liveview/SKILL.md .claude/skills/phoenix-liveview/SKILL.md 2>/dev/null && echo "PHOENIX_SKILL=true"
+```
+
+### Step 2: Route by Available Tools
+
+#### Route A: Stitch DESIGN.md already exists
+
+**IF `STITCH_DESIGN=true`:**
+
+Read `.stitch/DESIGN.md` and extract design tokens (color palette, typography, spacing, component styles). Pre-populate the UI-SPEC.md design contract from these values. Ask user to confirm or override.
+
+If `STITCH_MCP=true`, also check whether the DESIGN.md is stale by comparing the Stitch project's screen count against local `.stitch/designs/` count. Offer to refresh if out of sync.
+
+Continue to design contract questions for anything DESIGN.md didn't cover (copywriting, interaction patterns).
+
+#### Route B: Stitch MCP available but no DESIGN.md yet
+
+**IF `STITCH_MCP=true` AND `STITCH_DESIGN=false`:**
 
 Ask the user:
 ```
-No design system detected. shadcn is strongly recommended for design
-consistency across phases. Initialize now? [Y/n]
+Stitch MCP is available. Generate high-fidelity designs and extract
+a design system automatically? [Y/n]
+```
+
+- **If Y:**
+  1. Read the `enhance-prompt` skill references (if available) to build a structured prompt
+  2. Use `generate_screen_from_text` describing the phase's primary screen — include design preferences from CONTEXT.md if available
+  3. Download the generated HTML and screenshot to `.stitch/designs/`
+  4. Analyze the generated design to extract tokens into `.stitch/DESIGN.md` (follow the `design-md` skill patterns)
+  5. Pre-populate UI-SPEC.md from the extracted DESIGN.md
+  6. Continue to design contract questions for anything DESIGN.md didn't cover
+- **If N:** Fall through to Route C or D.
+
+#### Route C: Stitch skills available but no MCP (offline/manual mode)
+
+**IF `STITCH_SKILLS=true` AND `STITCH_MCP=false` AND `STITCH_DESIGN=false`:**
+
+```
+Stitch skills are installed but Stitch MCP server is not configured.
+To enable Stitch design generation, configure the Stitch MCP server
+in your Claude settings.
+
+Proceeding with manual design token detection.
+```
+
+Fall through to Route D or E.
+
+#### Route D: shadcn (React/Next.js/Vite projects, no Stitch)
+
+**IF `STACK=react` AND no Stitch route taken:**
+
+**IF `components.json` NOT found:**
+
+Ask the user:
+```
+No design system detected. shadcn is recommended for React projects.
+Initialize now? [Y/n]
 ```
 
 - **If Y:** Instruct user: "Go to ui.shadcn.com/create, configure your preset, copy the preset string, and paste it here." Then run `npx shadcn init --preset {paste}`. Confirm `components.json` exists. Run `npx shadcn info` to read current state. Continue to design contract questions.
-- **If N:** Note in UI-SPEC.md: `Tool: none`. Proceed to design contract questions without preset automation. Registry safety gate: not applicable.
+- **If N:** Note in UI-SPEC.md: `Tool: none`. Proceed to design contract questions without preset automation.
 
 **IF `components.json` found:**
 
 Read preset from `npx shadcn info` output. Pre-populate design contract with detected values. Ask user to confirm or override each value.
 
-</shadcn_gate>
+#### Route E: Phoenix/LiveView (manual tokens)
+
+**IF `STACK=phoenix` AND no Stitch route taken:**
+
+Scan existing design tokens from `assets/css/app.css` (Tailwind v4 `@theme` block), `core_components.ex`, and any existing component modules. Pre-populate UI-SPEC.md from detected values.
+
+If `PHOENIX_SKILL=true`, note in the UI-SPEC.md that Stitch designs should be converted to Phoenix components using the `phoenix-liveview` skill during execution.
+
+#### Route F: No design system detected
+
+Note in UI-SPEC.md: `Tool: none`. Proceed to design contract questions manually.
+
+</design_system_gate>
 
 <design_contract_questions>
 
@@ -232,24 +341,34 @@ Read all files from `<files_to_read>` block. Parse:
 ## Step 2: Scout Existing UI
 
 ```bash
-# Design system detection
+# Stitch design system
+ls .stitch/DESIGN.md .stitch/designs/*.html .stitch/designs/*.png 2>/dev/null
+
+# shadcn (React projects)
 ls components.json tailwind.config.* postcss.config.* 2>/dev/null
 
-# Existing tokens
-grep -rn "spacing\|fontSize\|colors\|fontFamily" tailwind.config.* 2>/dev/null
+# Phoenix/LiveView
+ls assets/css/app.css lib/*_web/components/core_components.ex 2>/dev/null
 
-# Existing components
+# Existing tokens — Tailwind v4 (@theme in CSS) or v3 (config file)
+grep -rn "@theme\|spacing\|fontSize\|colors\|fontFamily" assets/css/app.css tailwind.config.* 2>/dev/null
+
+# Existing components (framework-agnostic)
+find lib -name "*.ex" -path "*/components/*" 2>/dev/null | head -20
 find src -name "*.tsx" -path "*/components/*" -o -name "*.tsx" -path "*/ui/*" 2>/dev/null | head -20
 
 # Existing styles
+find assets -name "*.css" 2>/dev/null | head -10
 find src -name "*.css" -o -name "*.scss" 2>/dev/null | head -10
 ```
 
 Catalog what already exists. Do not re-specify what the project already has.
 
-## Step 3: shadcn Gate
+## Step 3: Design System Gate
 
-Run the shadcn initialization gate from `<shadcn_gate>`.
+Run the design system detection gate from `<design_system_gate>`.
+
+Priority: Stitch DESIGN.md > shadcn components.json > Phoenix tokens > manual.
 
 ## Step 4: Design Contract Questions
 
@@ -284,14 +403,15 @@ node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" commit "docs($PHASE): UI de
 ## UI-SPEC COMPLETE
 
 **Phase:** {phase_number} - {phase_name}
-**Design System:** {shadcn preset / manual / none}
+**Design System:** {stitch / shadcn preset / phoenix-tailwind / manual / none}
 
 ### Contract Summary
 - Spacing: {scale summary}
 - Typography: {N} sizes, {N} weights
 - Color: {dominant/secondary/accent summary}
 - Copywriting: {N} elements defined
-- Registry: {shadcn official / third-party count}
+- Design source: {stitch / shadcn official / manual}
+- Registry: {stitch MCP / shadcn official / third-party count / none}
 
 ### File Created
 `$PHASE_DIR/$PADDED_PHASE-UI-SPEC.md`
@@ -301,6 +421,7 @@ node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" commit "docs($PHASE): UI de
 |--------|---------------|
 | CONTEXT.md | {count} |
 | RESEARCH.md | {count} |
+| .stitch/DESIGN.md | {yes/no} |
 | components.json | {yes/no} |
 | User input | {count} |
 
@@ -334,14 +455,15 @@ UI-SPEC complete. Checker can now validate.
 UI-SPEC research is complete when:
 
 - [ ] All `<files_to_read>` loaded before any action
-- [ ] Existing design system detected (or absence confirmed)
-- [ ] shadcn gate executed (for React/Next.js/Vite projects)
+- [ ] Existing design system detected (Stitch DESIGN.md / shadcn / Phoenix tokens / none)
+- [ ] Design system gate executed (Stitch-first, then shadcn for React, Phoenix tokens for Elixir)
 - [ ] Upstream decisions pre-populated (not re-asked)
 - [ ] Spacing scale declared (multiples of 4 only)
 - [ ] Typography declared (3-4 sizes, 2 weights max)
 - [ ] Color contract declared (60/30/10 split, accent reserved-for list)
 - [ ] Copywriting contract declared (CTA, empty, error, destructive)
-- [ ] Registry safety declared (if shadcn initialized)
+- [ ] Design source declared (Stitch project reference / shadcn / manual)
+- [ ] Registry safety declared (if shadcn initialized or third-party components used)
 - [ ] Registry vetting gate executed for each third-party block (if any declared)
 - [ ] Safety Gate column contains timestamped evidence, not intent notes
 - [ ] UI-SPEC.md written to correct path

@@ -69,6 +69,26 @@ Note: stack decisions (component library, styling approach) will be asked during
 ```
 Continue (non-blocking).
 
+**Detect Stitch availability:**
+```bash
+# Check for existing Stitch design system
+STITCH_DESIGN=$(test -f .stitch/DESIGN.md && echo "true" || echo "false")
+STITCH_SCREEN_COUNT=$(ls .stitch/designs/*.html 2>/dev/null | wc -l)
+# Check for Stitch skills
+STITCH_SKILLS=$(test -f ~/.claude/skills/stitch-design/SKILL.md && echo "true" || echo "false")
+PHOENIX_SKILL=$(test -f ~/.claude/skills/phoenix-liveview/SKILL.md && echo "true" || echo "false")
+```
+
+**Probe Stitch MCP** (the researcher agent will do this actively by calling `list_projects` — but display what we know from files):
+
+Display if detected:
+```
+Stitch design system: {detected (.stitch/DESIGN.md) / not found}
+Stitch designs: {N} screens in .stitch/designs/
+Stitch skills: {stitch-design, phoenix-liveview, ... / not installed}
+Stitch MCP: {researcher will probe on startup}
+```
+
 ## 4. Check Existing UI-SPEC
 
 ```bash
@@ -114,12 +134,21 @@ Answer: "What visual and interaction contracts does this phase need?"
 - {requirements_path} (Requirements)
 - {context_path} (USER DECISIONS from /gsd:discuss-phase)
 - {research_path} (Technical Research — stack decisions)
+- .stitch/DESIGN.md (Stitch design system — if exists)
 </files_to_read>
 
 <output>
 Write to: {phase_dir}/{padded_phase}-UI-SPEC.md
 Template: ~/.claude/get-shit-done/templates/UI-SPEC.md
 </output>
+
+<stitch_context>
+stitch_design_md: {STITCH_DESIGN — "true" or "false"}
+stitch_screen_count: {STITCH_SCREEN_COUNT}
+stitch_skills: {STITCH_SKILLS — "true" or "false"}
+phoenix_skill: {PHOENIX_SKILL — "true" or "false"}
+note: Probe Stitch MCP by calling list_projects — if it works, MCP is live
+</stitch_context>
 
 <config>
 commit_docs: {commit_docs}

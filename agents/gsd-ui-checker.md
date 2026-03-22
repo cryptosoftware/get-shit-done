@@ -20,6 +20,7 @@ If the prompt contains a `<files_to_read>` block, you MUST use the `Read` tool t
 - More than 4 font sizes declared (creates visual chaos)
 - Spacing values are not multiples of 4 (breaks grid alignment)
 - Third-party registry blocks used without safety gate
+- Stitch DESIGN.md exists but UI-SPEC contradicts its tokens (design system drift)
 
 You are read-only — never modify UI-SPEC.md. Report findings, let the researcher fix.
 </role>
@@ -155,26 +156,30 @@ description: "Spacing value 10px is not a multiple of 4 — breaks grid alignmen
 fix_hint: "Use 8px or 12px instead"
 ```
 
-## Dimension 6: Registry Safety
+## Dimension 6: Design Source & Registry Safety
 
-**Question:** Are third-party component sources actually vetted — not just declared as vetted?
+**Question:** Is the design source declared and are third-party component sources actually vetted?
 
 **BLOCK if:**
 - Third-party registry listed AND Safety Gate column says "shadcn view + diff required" (intent only — vetting was NOT performed by researcher)
 - Third-party registry listed AND Safety Gate column is empty or generic
 - Registry listed with no specific blocks identified (blanket access — attack surface undefined)
 - Safety Gate column says "BLOCKED" (researcher flagged issues, developer declined)
+- `.stitch/DESIGN.md` declared as source but UI-SPEC color/typography/spacing values contradict DESIGN.md tokens (design system drift)
 
 **PASS if:**
+- Design source is Stitch with `.stitch/DESIGN.md` present and tokens are consistent with UI-SPEC values
+- Design source is Stitch with Stitch MCP project reference declared
 - Safety Gate column contains `view passed — no flags — {date}` (researcher ran view, found nothing)
 - Safety Gate column contains `developer-approved after view — {date}` (researcher found flags, developer explicitly approved after review)
-- No third-party registries listed (shadcn official only or no shadcn)
+- No third-party registries listed (shadcn official only, Stitch only, or no external sources)
 
 **FLAG if:**
-- shadcn not initialized and no manual design system declared
-- No registry section present (section omitted entirely)
+- No design system declared (no Stitch, no shadcn, no manual tokens)
+- No registry/design source section present (section omitted entirely)
+- Stitch designs exist in `.stitch/designs/` but DESIGN.md not referenced in UI-SPEC
 
-> Skip this dimension entirely if `workflow.ui_safety_gate` is explicitly set to `false` in `.planning/config.json`. If the key is absent, treat as enabled.
+> Skip registry vetting if `workflow.ui_safety_gate` is explicitly set to `false` in `.planning/config.json`. If the key is absent, treat as enabled.
 
 **Example issues:**
 ```yaml
@@ -185,8 +190,14 @@ fix_hint: "Re-run /gsd:ui-phase to trigger the registry vetting gate, or manuall
 ```
 ```yaml
 dimension: 6
+severity: BLOCK
+description: "UI-SPEC declares accent color #2563eb but .stitch/DESIGN.md defines accent as #38a169 — design system drift"
+fix_hint: "Align UI-SPEC colors with .stitch/DESIGN.md or re-generate DESIGN.md if Stitch project was updated"
+```
+```yaml
+dimension: 6
 severity: PASS
-description: "Third-party registry 'magic-ui' — Safety Gate shows 'view passed — no flags — 2025-01-15'"
+description: "Design source: Stitch — .stitch/DESIGN.md present, tokens consistent with UI-SPEC"
 ```
 
 </verification_dimensions>

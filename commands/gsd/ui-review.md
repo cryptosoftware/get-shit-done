@@ -10,6 +10,7 @@ allowed-tools:
   - Grep
   - Task
   - AskUserQuestion
+  - mcp__stitch__*
 ---
 <objective>
 Conduct a retroactive 6-pillar visual audit. Produces UI-REVIEW.md with

@@ -55,6 +55,12 @@ Build file list for auditor:
 - All PLAN.md files in phase dir
 - UI-SPEC.md (if exists — audit baseline)
 - CONTEXT.md (if exists — locked decisions)
+- .stitch/DESIGN.md (if exists — design system baseline)
+
+Also detect Stitch reference designs:
+```bash
+STITCH_DESIGNS=$(ls .stitch/designs/*.png 2>/dev/null | wc -l)
+```
 
 ## 3. Spawn gsd-ui-auditor
 
@@ -78,6 +84,7 @@ Conduct 6-pillar visual audit of Phase {phase_number}: {phase_name}
 - {plan_paths} (Execution plans — what was intended)
 - {ui_spec_path} (UI Design Contract — audit baseline, if exists)
 - {context_path} (User decisions, if exists)
+- .stitch/DESIGN.md (Stitch design system baseline, if exists)
 </files_to_read>
 
 <config>

@@ -2,6 +2,8 @@
 phase: {N}
 slug: {phase-slug}
 status: draft
+design_source: none
+stitch_project_id: none
 shadcn_initialized: false
 preset: none
 created: {date}
@@ -17,10 +19,14 @@ created: {date}
 
 | Property | Value |
 |----------|-------|
-| Tool | {shadcn / none} |
+| Design source | {stitch / shadcn / phoenix-tailwind / manual / none} |
+| Stitch project | {project ID or "not applicable"} |
+| DESIGN.md | {.stitch/DESIGN.md path or "not applicable"} |
+| Tool | {stitch MCP / shadcn / none} |
 | Preset | {preset string or "not applicable"} |
-| Component library | {radix / base-ui / none} |
-| Icon library | {library} |
+| Component library | {Phoenix.Component / radix / base-ui / none} |
+| Component skill | {phoenix-liveview / react-components / none} |
+| Icon library | {heroicons / library name} |
 | Font | {font} |
 
 ---
@@ -79,12 +85,14 @@ Accent reserved for: {explicit list — never "all interactive elements"}
 
 ---
 
-## Registry Safety
+## Design Source & Registry Safety
 
-| Registry | Blocks Used | Safety Gate |
-|----------|-------------|-------------|
-| shadcn official | {list} | not required |
-| {third-party name} | {list} | shadcn view + diff required |
+| Source | Reference | Status |
+|--------|-----------|--------|
+| Stitch MCP | {project ID / "not used"} | {active / not used} |
+| .stitch/DESIGN.md | {path / "not present"} | {synced / not present} |
+| shadcn official | {list of blocks / "not used"} | {not required / not used} |
+| {third-party name} | {list} | {shadcn view + diff required} |
 
 ---
 
@@ -95,6 +103,6 @@ Accent reserved for: {explicit list — never "all interactive elements"}
 - [ ] Dimension 3 Color: PASS
 - [ ] Dimension 4 Typography: PASS
 - [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [ ] Dimension 6 Design Source & Registry Safety: PASS
 
 **Approval:** {pending / approved YYYY-MM-DD}
