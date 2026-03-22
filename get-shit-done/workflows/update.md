@@ -146,14 +146,14 @@ Proceed to install step (treat as version 0.0.0 for comparison).
 Check npm for latest version:
 
 ```bash
-npm view get-shit-done-cc version 2>/dev/null
+curl -sf https://raw.githubusercontent.com/cryptosoftware/get-shit-done/main/package.json 2>/dev/null | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).version))"
 ```
 
-**If npm check fails:**
+**If version check fails:**
 ```
-Couldn't check for updates (offline or npm unavailable).
+Couldn't check for updates (offline or GitHub unavailable).
 
-To update manually: `npx get-shit-done-cc --global`
+To update manually: `npx -y github:cryptosoftware/get-shit-done --global`
 ```
 
 Exit.
@@ -252,17 +252,17 @@ RUNTIME_FLAG="--$TARGET_RUNTIME"
 
 **If LOCAL install:**
 ```bash
-npx -y get-shit-done-cc@latest "$RUNTIME_FLAG" --local
+npx -y github:cryptosoftware/get-shit-done "$RUNTIME_FLAG" --local
 ```
 
 **If GLOBAL install:**
 ```bash
-npx -y get-shit-done-cc@latest "$RUNTIME_FLAG" --global
+npx -y github:cryptosoftware/get-shit-done "$RUNTIME_FLAG" --global
 ```
 
 **If UNKNOWN install:**
 ```bash
-npx -y get-shit-done-cc@latest --claude --global
+npx -y github:cryptosoftware/get-shit-done --claude --global
 ```
 
 Capture output. If install fails, show error and exit.
@@ -290,7 +290,7 @@ Format completion message (changelog was already shown in confirmation step):
 
 ⚠️  Restart your runtime to pick up the new commands.
 
-[View full changelog](https://github.com/glittercowboy/get-shit-done/blob/main/CHANGELOG.md)
+[View full changelog](https://github.com/cryptosoftware/get-shit-done/blob/main/CHANGELOG.md)
 ```
 </step>
 

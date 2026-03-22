@@ -93,7 +93,8 @@ const child = spawn(process.execPath, ['-e', `
 
   let latest = null;
   try {
-    latest = execSync('npm view get-shit-done-cc version', { encoding: 'utf8', timeout: 10000, windowsHide: true }).trim();
+    const raw = execSync('curl -sf https://raw.githubusercontent.com/cryptosoftware/get-shit-done/main/package.json', { encoding: 'utf8', timeout: 10000, windowsHide: true }).trim();
+    latest = JSON.parse(raw).version;
   } catch (e) {}
 
   const result = {
