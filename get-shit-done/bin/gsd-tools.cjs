@@ -61,6 +61,7 @@
  *
  * Progress:
  *   progress [json|table|bar]          Render progress in various formats
+ *   status export                      Write unified status.json to .planning/
  *
  * Todos:
  *   todo complete <filename>           Move todo from pending to completed
@@ -663,6 +664,16 @@ async function runCommand(command, args, cwd, raw) {
     case 'stats': {
       const subcommand = args[1] || 'json';
       commands.cmdStats(cwd, subcommand, raw);
+      break;
+    }
+
+    case 'status': {
+      const subcommand = args[1] || 'export';
+      if (subcommand === 'export') {
+        commands.cmdStatusExport(cwd, raw);
+      } else {
+        error('Unknown status subcommand. Available: export');
+      }
       break;
     }
 

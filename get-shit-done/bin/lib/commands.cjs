@@ -940,6 +940,195 @@ function cmdStats(cwd, format, raw) {
   }
 }
 
+/**
+ * Export a unified status.json snapshot to .planning/status.json.
+ * Aggregates: stats (phases, requirements, git), roadmap analysis (goals,
+ * dependencies, disk status), state snapshot (position, blockers, decisions),
+ * and pending todos into a single structured file.
+ */
+function cmdStatusExport(cwd, raw) {
+  const roadmap = require('./roadmap.cjs');
+  const stateModule = require('./state.cjs');
+
+  const paths = planningPaths(cwd);
+  const milestone = getMilestoneInfo(cwd);
+  const isDirInMilestone = getMilestonePhaseFilter(cwd);
+
+  // ── Phase & plan stats (from cmdStats pattern) ───────────────────────────
+  const phasesByNumber = new Map();
+  let totalPlans = 0;
+  let totalSummaries = 0;
+
+  try {
+    const roadmapContent = extractCurrentMilestone(fs.readFileSync(paths.roadmap, 'utf-8'), cwd);
+    const headingPattern = /#{2,4}\s*Phase\s+(\d+[A-Z]?(?:\.\d+)*)\s*:\s*([^\n]+)/gi;
+    let match;
+    while ((match = headingPattern.exec(roadmapContent)) !== null) {
+      phasesByNumber.set(match[1], {
+        number: match[1],
+        name: match[2].replace(/\(INSERTED\)/i, '').trim(),
+        plans: 0,
+        summaries: 0,
+        status: 'Not Started',
+      });
+    }
+  } catch { /* intentionally empty */ }
+
+  try {
+    const entries = fs.readdirSync(paths.phases, { withFileTypes: true });
+    const dirs = entries
+      .filter(e => e.isDirectory())
+      .map(e => e.name)
+      .filter(isDirInMilestone)
+      .sort((a, b) => comparePhaseNum(a, b));
+
+    for (const dir of dirs) {
+      const dm = dir.match(/^(\d+[A-Z]?(?:\.\d+)*)-?(.*)/i);
+      const phaseNum = dm ? dm[1] : dir;
+      const phaseName = dm && dm[2] ? dm[2].replace(/-/g, ' ') : '';
+      const phaseFiles = fs.readdirSync(path.join(paths.phases, dir));
+      const plans = phaseFiles.filter(f => f.endsWith('-PLAN.md') || f === 'PLAN.md').length;
+      const summaries = phaseFiles.filter(f => f.endsWith('-SUMMARY.md') || f === 'SUMMARY.md').length;
+
+      totalPlans += plans;
+      totalSummaries += summaries;
+
+      let status;
+      if (plans === 0) status = 'Not Started';
+      else if (summaries >= plans) status = 'Complete';
+      else if (summaries > 0) status = 'In Progress';
+      else status = 'Planned';
+
+      const existing = phasesByNumber.get(phaseNum);
+      phasesByNumber.set(phaseNum, {
+        number: phaseNum,
+        name: existing?.name || phaseName,
+        plans,
+        summaries,
+        status,
+      });
+    }
+  } catch { /* intentionally empty */ }
+
+  const phases = [...phasesByNumber.values()].sort((a, b) => comparePhaseNum(a.number, b.number));
+  const completedPhases = phases.filter(p => p.status === 'Complete').length;
+  const planPercent = totalPlans > 0 ? Math.min(100, Math.round((totalSummaries / totalPlans) * 100)) : 0;
+  const phasePercent = phases.length > 0 ? Math.min(100, Math.round((completedPhases / phases.length) * 100)) : 0;
+
+  // ── Requirements ─────────────────────────────────────────────────────────
+  let requirementsTotal = 0;
+  let requirementsComplete = 0;
+  try {
+    if (fs.existsSync(paths.requirements)) {
+      const reqContent = fs.readFileSync(paths.requirements, 'utf-8');
+      const checked = reqContent.match(/^- \[x\] \*\*/gm);
+      const unchecked = reqContent.match(/^- \[ \] \*\*/gm);
+      requirementsComplete = checked ? checked.length : 0;
+      requirementsTotal = requirementsComplete + (unchecked ? unchecked.length : 0);
+    }
+  } catch { /* intentionally empty */ }
+
+  // ── Git stats ────────────────────────────────────────────────────────────
+  let gitCommits = 0;
+  let gitFirstCommitDate = null;
+  const commitCount = execGit(cwd, ['rev-list', '--count', 'HEAD']);
+  if (commitCount.exitCode === 0) {
+    gitCommits = parseInt(commitCount.stdout, 10) || 0;
+  }
+  const rootHash = execGit(cwd, ['rev-list', '--max-parents=0', 'HEAD']);
+  if (rootHash.exitCode === 0 && rootHash.stdout) {
+    const firstCommit = rootHash.stdout.split('\n')[0].trim();
+    const firstDate = execGit(cwd, ['show', '-s', '--format=%as', firstCommit]);
+    if (firstDate.exitCode === 0) {
+      gitFirstCommitDate = firstDate.stdout || null;
+    }
+  }
+
+  // ── State snapshot (position, blockers, decisions) ───────────────────────
+  let stateData = null;
+  try {
+    if (fs.existsSync(paths.state)) {
+      const content = fs.readFileSync(paths.state, 'utf-8');
+      const extractField = stateModule.stateExtractField;
+
+      const decisions = [];
+      const decisionsMatch = content.match(/##\s*Decisions Made[\s\S]*?\n\|[^\n]+\n\|[-|\s]+\n([\s\S]*?)(?=\n##|\n$|$)/i);
+      if (decisionsMatch) {
+        const rows = decisionsMatch[1].trim().split('\n').filter(r => r.includes('|'));
+        for (const row of rows) {
+          const cells = row.split('|').map(c => c.trim()).filter(Boolean);
+          if (cells.length >= 3) {
+            decisions.push({ phase: cells[0], summary: cells[1], rationale: cells[2] });
+          }
+        }
+      }
+
+      const blockers = [];
+      const blockersMatch = content.match(/##\s*Blockers\s*\n([\s\S]*?)(?=\n##|$)/i);
+      if (blockersMatch) {
+        const items = blockersMatch[1].match(/^-\s+(.+)$/gm) || [];
+        for (const item of items) {
+          blockers.push(item.replace(/^-\s+/, '').trim());
+        }
+      }
+
+      stateData = {
+        current_phase: extractField(content, 'Current Phase'),
+        current_phase_name: extractField(content, 'Current Phase Name'),
+        status: extractField(content, 'Status'),
+        last_activity: extractField(content, 'Last Activity'),
+        paused_at: extractField(content, 'Paused At'),
+        decisions,
+        blockers,
+      };
+    }
+  } catch { /* intentionally empty */ }
+
+  // ── Pending todos ────────────────────────────────────────────────────────
+  let pendingTodos = 0;
+  try {
+    const pendingDir = path.join(paths.planning, 'todos', 'pending');
+    pendingTodos = fs.readdirSync(pendingDir).filter(f => f.endsWith('.md')).length;
+  } catch { /* intentionally empty */ }
+
+  // ── Compose ──────────────────────────────────────────────────────────────
+  const status = {
+    generated_at: new Date().toISOString(),
+    milestone: {
+      version: milestone.version,
+      name: milestone.name,
+    },
+    progress: {
+      phases_completed: completedPhases,
+      phases_total: phases.length,
+      phase_percent: phasePercent,
+      plans_completed: totalSummaries,
+      plans_total: totalPlans,
+      plan_percent: planPercent,
+    },
+    requirements: {
+      total: requirementsTotal,
+      complete: requirementsComplete,
+    },
+    phases,
+    state: stateData,
+    pending_todos: pendingTodos,
+    git: {
+      commits: gitCommits,
+      first_commit_date: gitFirstCommitDate,
+    },
+  };
+
+  // Write to .planning/status.json
+  const statusPath = path.join(paths.planning, 'status.json');
+  if (!fs.existsSync(paths.planning)) {
+    fs.mkdirSync(paths.planning, { recursive: true });
+  }
+  fs.writeFileSync(statusPath, JSON.stringify(status, null, 2) + '\n', 'utf-8');
+
+  output({ path: toPosixPath(path.relative(cwd, statusPath)), status }, raw);
+}
+
 module.exports = {
   cmdGenerateSlug,
   cmdCurrentTimestamp,
@@ -956,4 +1145,5 @@ module.exports = {
   cmdTodoMatchPhase,
   cmdScaffold,
   cmdStats,
+  cmdStatusExport,
 };
