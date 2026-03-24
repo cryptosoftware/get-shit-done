@@ -132,12 +132,16 @@ Run this logic before proceeding to design contract questions. The gate detects 
 
 ### Step 1: Probe Available Design Tools
 
-**Stitch MCP probe (do this FIRST):**
+**Stitch MCP probe (do this FIRST — MANDATORY):**
 
-Try calling `list_projects` (or the namespaced equivalent like `mcp__stitch__list_projects`). This is a lightweight read-only call.
+You MUST call `mcp__stitch__list_projects` as your FIRST action in this gate. This is the ONLY way to determine if Stitch MCP is available. Do NOT check `.mcp.json` or any config file — MCP servers can be configured at the user level (`~/.claude.json`) or project level, and config file inspection will miss user-level servers.
 
-- **If it returns a project list** → Stitch MCP is live. Set `STITCH_MCP=true`.
-- **If the tool is not found or errors** → Stitch MCP is not configured. Set `STITCH_MCP=false`.
+Just call the tool. The result tells you everything:
+
+- **If it returns a project list (even empty)** → Stitch MCP is live. Set `STITCH_MCP=true`.
+- **If the tool call fails or tool is not found** → Stitch MCP is not available. Set `STITCH_MCP=false`.
+
+⚠️ **Common mistake:** Do NOT infer MCP availability from `.mcp.json`, environment variables, or any file. The ONLY reliable probe is calling the tool.
 
 **Local Stitch assets:**
 
@@ -163,8 +167,8 @@ test -f package.json && grep -qE "react|next|vite" package.json 2>/dev/null && e
 
 ```bash
 # Check for installed stitch skills (symlinked or local)
-ls ~/.claude/skills/stitch-design/SKILL.md .claude/skills/stitch-design/SKILL.md 2>/dev/null && echo "STITCH_SKILLS=true"
-ls ~/.claude/skills/phoenix-liveview/SKILL.md .claude/skills/phoenix-liveview/SKILL.md 2>/dev/null && echo "PHOENIX_SKILL=true"
+ls $HOME/.claude/skills/stitch-design/SKILL.md .claude/skills/stitch-design/SKILL.md 2>/dev/null && echo "STITCH_SKILLS=true"
+ls $HOME/.claude/skills/phoenix-liveview/SKILL.md .claude/skills/phoenix-liveview/SKILL.md 2>/dev/null && echo "PHOENIX_SKILL=true"
 ```
 
 ### Step 2: Route by Available Tools
@@ -175,7 +179,17 @@ ls ~/.claude/skills/phoenix-liveview/SKILL.md .claude/skills/phoenix-liveview/SK
 
 Read `.stitch/DESIGN.md` and extract design tokens (color palette, typography, spacing, component styles). Pre-populate the UI-SPEC.md design contract from these values. Ask user to confirm or override.
 
-If `STITCH_MCP=true`, also check whether the DESIGN.md is stale by comparing the Stitch project's screen count against local `.stitch/designs/` count. Offer to refresh if out of sync.
+**CRITICAL — Stitch is authoritative:** When `.stitch/DESIGN.md` exists, its tokens are the **source of truth** for visual design. If existing CSS themes (e.g., daisyUI themes in `app.css`) conflict with Stitch tokens, the UI-SPEC must:
+1. Declare Stitch as the authoritative design source
+2. Include a "CSS Theme Alignment" section listing what existing theme tokens must change to match Stitch
+3. Plan tasks for updating `app.css` theme tokens to match Stitch values (colors, fonts, spacing)
+4. Never demote Stitch to "visual reference only" — Stitch defines the target, implementation must match
+
+**Font handling:** If Stitch DESIGN.md specifies custom fonts (e.g., Manrope, Inter, JetBrains Mono), the UI-SPEC must include tasks to import these fonts and configure them in the project's CSS/Tailwind setup.
+
+**Nav/Layout from Stitch screens:** If Stitch screens include navigation structure, sidebars, or layout patterns, these must be adopted in the UI-SPEC layout contract — not replaced with generic framework defaults.
+
+If `STITCH_MCP=true`, also check whether the DESIGN.md is stale by comparing the Stitch project's screen count against local `.stitch/designs/` count. Offer to refresh if out of sync. Also fetch and review generated screen HTML to extract structural patterns (nav, layout, footer) that should be part of the design contract.
 
 Continue to design contract questions for anything DESIGN.md didn't cover (copywriting, interaction patterns).
 
@@ -202,8 +216,11 @@ a design system automatically? [Y/n]
 
 **IF `STITCH_SKILLS=true` AND `STITCH_MCP=false` AND `STITCH_DESIGN=false`:**
 
+This route should ONLY trigger if the `mcp__stitch__list_projects` tool call in Step 1 actually failed or the tool was not found. If you did not call the tool, go back and call it before entering this route.
+
 ```
-Stitch skills are installed but Stitch MCP server is not configured.
+Stitch skills are installed but Stitch MCP server is not available.
+(Verified by calling mcp__stitch__list_projects — tool call failed.)
 To enable Stitch design generation, configure the Stitch MCP server
 in your Claude settings.
 
@@ -236,6 +253,8 @@ Read preset from `npx shadcn info` output. Pre-populate design contract with det
 **IF `STACK=phoenix` AND no Stitch route taken:**
 
 Scan existing design tokens from `assets/css/app.css` (Tailwind v4 `@theme` block), `core_components.ex`, and any existing component modules. Pre-populate UI-SPEC.md from detected values.
+
+**Note:** This route only applies when NO Stitch design exists. If `.stitch/DESIGN.md` exists, Route A takes precedence — the existing CSS tokens are what needs to change, not what the UI-SPEC should adopt.
 
 If `PHOENIX_SKILL=true`, note in the UI-SPEC.md that Stitch designs should be converted to Phoenix components using the `phoenix-liveview` skill during execution.
 
@@ -312,7 +331,7 @@ Scan the output for suspicious patterns:
 
 ## Output: UI-SPEC.md
 
-Use template from `~/.claude/get-shit-done/templates/UI-SPEC.md`.
+Use template from `$HOME/.claude/get-shit-done/templates/UI-SPEC.md`.
 
 Write to: `$PHASE_DIR/$PADDED_PHASE-UI-SPEC.md`
 
@@ -381,7 +400,7 @@ Batch questions into a single interaction where possible.
 
 ## Step 5: Compile UI-SPEC.md
 
-Read template: `~/.claude/get-shit-done/templates/UI-SPEC.md`
+Read template: `$HOME/.claude/get-shit-done/templates/UI-SPEC.md`
 
 Fill all sections. Write to `$PHASE_DIR/$PADDED_PHASE-UI-SPEC.md`.
 

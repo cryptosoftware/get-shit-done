@@ -5,7 +5,7 @@ Create executable phase prompts (PLAN.md files) for a roadmap phase with integra
 <required_reading>
 Read all files referenced by the invoking prompt's execution_context before starting.
 
-@~/.claude/get-shit-done/references/ui-brand.md
+@$HOME/.claude/get-shit-done/references/ui-brand.md
 </required_reading>
 
 <available_agent_types>
@@ -343,7 +343,7 @@ grep -l "## Validation Architecture" "${PHASE_DIR}"/*-RESEARCH.md 2>/dev/null
 ```
 
 **If found:**
-1. Read template: `~/.claude/get-shit-done/templates/VALIDATION.md`
+1. Read template: `$HOME/.claude/get-shit-done/templates/VALIDATION.md`
 2. Write to `${PHASE_DIR}/${PADDED_PHASE}-VALIDATION.md` (use Write tool)
 3. Fill frontmatter: `{N}` → phase number, `{phase-slug}` → slug, `{date}` → current date
 4. Verify:
@@ -498,6 +498,22 @@ Output consumed by /gsd:execute-phase. Plans need:
 - Verification criteria
 - must_haves for goal-backward verification
 </downstream_consumer>
+
+<stitch_design_enforcement>
+**When `.stitch/DESIGN.md` exists AND phase has frontend work:**
+
+Stitch defines the visual target. Plans MUST include:
+
+1. **CSS theme alignment task (Wave 1):** If existing CSS theme tokens (daisyUI, Tailwind config) don't match Stitch DESIGN.md values, include a task to update `assets/css/app.css` theme tokens. Every `read_first` for this task must include both `.stitch/DESIGN.md` and `assets/css/app.css`.
+
+2. **Font import task (Wave 1):** If Stitch specifies custom fonts not yet imported, include a task to add font imports (Google Fonts link in root layout, `@font-face` declarations, or Tailwind font config).
+
+3. **Layout/nav from Stitch screens:** If Stitch screens define navigation structure, the layout task's `read_first` must include the Stitch screen HTML files. Do not substitute generic framework navbars when Stitch provides a specific design.
+
+4. **`read_first` on all UI tasks:** Every task that creates or modifies UI components, templates, or styles MUST include `.stitch/DESIGN.md` in `read_first`. This ensures executors reference the correct color tokens, typography, and spacing.
+
+5. **Acceptance criteria:** For color/typography/layout tasks, acceptance criteria must reference specific Stitch values (e.g., "background-color matches Stitch Background token #121221" not "uses appropriate dark theme").
+</stitch_design_enforcement>
 
 <deep_work_rules>
 ## Anti-Shallow Execution Rules (MANDATORY)

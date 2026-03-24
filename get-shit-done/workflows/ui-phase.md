@@ -5,7 +5,7 @@ UI-SPEC.md locks spacing, typography, color, copywriting, and design system deci
 </purpose>
 
 <required_reading>
-@~/.claude/get-shit-done/references/ui-brand.md
+@$HOME/.claude/get-shit-done/references/ui-brand.md
 </required_reading>
 
 <process>
@@ -75,18 +75,23 @@ Continue (non-blocking).
 STITCH_DESIGN=$(test -f .stitch/DESIGN.md && echo "true" || echo "false")
 STITCH_SCREEN_COUNT=$(ls .stitch/designs/*.html 2>/dev/null | wc -l)
 # Check for Stitch skills
-STITCH_SKILLS=$(test -f ~/.claude/skills/stitch-design/SKILL.md && echo "true" || echo "false")
-PHOENIX_SKILL=$(test -f ~/.claude/skills/phoenix-liveview/SKILL.md && echo "true" || echo "false")
+STITCH_SKILLS=$(test -f $HOME/.claude/skills/stitch-design/SKILL.md && echo "true" || echo "false")
+PHOENIX_SKILL=$(test -f $HOME/.claude/skills/phoenix-liveview/SKILL.md && echo "true" || echo "false")
 ```
 
-**Probe Stitch MCP** (the researcher agent will do this actively by calling `list_projects` — but display what we know from files):
+**Probe Stitch MCP (orchestrator-level):**
 
-Display if detected:
+Call `mcp__stitch__list_projects` directly from the orchestrator. This is the ONLY reliable way to check — do NOT check `.mcp.json` (MCP servers can be configured at user level `~/.claude.json`, not just project level).
+
+- **If tool returns results (even empty list)** → `STITCH_MCP=true`
+- **If tool call fails or tool not found** → `STITCH_MCP=false`
+
+Display:
 ```
 Stitch design system: {detected (.stitch/DESIGN.md) / not found}
 Stitch designs: {N} screens in .stitch/designs/
 Stitch skills: {stitch-design, phoenix-liveview, ... / not installed}
-Stitch MCP: {researcher will probe on startup}
+Stitch MCP: {connected / not available}
 ```
 
 ## 4. Check Existing UI-SPEC
@@ -121,7 +126,7 @@ Display:
 Build prompt:
 
 ```markdown
-Read ~/.claude/agents/gsd-ui-researcher.md for instructions.
+Read $HOME/.claude/agents/gsd-ui-researcher.md for instructions.
 
 <objective>
 Create UI design contract for Phase {phase_number}: {phase_name}
@@ -134,20 +139,30 @@ Answer: "What visual and interaction contracts does this phase need?"
 - {requirements_path} (Requirements)
 - {context_path} (USER DECISIONS from /gsd:discuss-phase)
 - {research_path} (Technical Research — stack decisions)
-- .stitch/DESIGN.md (Stitch design system — if exists)
+- .stitch/DESIGN.md (Stitch design system — if exists. AUTHORITATIVE for visual tokens when present)
 </files_to_read>
+
+<stitch_authority>
+When .stitch/DESIGN.md exists, Stitch is the AUTHORITATIVE design source. The UI-SPEC must:
+1. Use Stitch tokens for all color, typography, spacing, and component styling values
+2. Include a "CSS Theme Alignment" section showing what existing CSS tokens must change
+3. Adopt Stitch screen navigation/layout structure — do NOT substitute generic framework defaults
+4. If Stitch specifies custom fonts, include font import requirements
+5. Never demote Stitch to "visual reference only" while keeping existing CSS as authoritative
+If Stitch MCP is available, fetch screen HTML to extract structural patterns (nav, footer, layout).
+</stitch_authority>
 
 <output>
 Write to: {phase_dir}/{padded_phase}-UI-SPEC.md
-Template: ~/.claude/get-shit-done/templates/UI-SPEC.md
+Template: $HOME/.claude/get-shit-done/templates/UI-SPEC.md
 </output>
 
 <stitch_context>
+stitch_mcp: {STITCH_MCP — "true" or "false", probed by orchestrator via mcp__stitch__list_projects}
 stitch_design_md: {STITCH_DESIGN — "true" or "false"}
 stitch_screen_count: {STITCH_SCREEN_COUNT}
 stitch_skills: {STITCH_SKILLS — "true" or "false"}
 phoenix_skill: {PHOENIX_SKILL — "true" or "false"}
-note: Probe Stitch MCP by calling list_projects — if it works, MCP is live
 </stitch_context>
 
 <config>
@@ -190,7 +205,7 @@ Display:
 Build prompt:
 
 ```markdown
-Read ~/.claude/agents/gsd-ui-checker.md for instructions.
+Read $HOME/.claude/agents/gsd-ui-checker.md for instructions.
 
 <objective>
 Validate UI design contract for Phase {phase_number}: {phase_name}

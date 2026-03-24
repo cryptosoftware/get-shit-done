@@ -62,6 +62,10 @@ Exceptions: {list any, or "none"}
 
 ## Color
 
+**Token authority:** {stitch (.stitch/DESIGN.md) / existing CSS / manual}
+
+When Stitch DESIGN.md exists, its tokens define the target. Existing CSS themes must be updated to match.
+
 | Role | Value | Usage |
 |------|-------|-------|
 | Dominant (60%) | {hex} | Background, surfaces |
@@ -70,6 +74,12 @@ Exceptions: {list any, or "none"}
 | Destructive | {hex} | Destructive actions only |
 
 Accent reserved for: {explicit list — never "all interactive elements"}
+
+### CSS Theme Alignment
+
+{If Stitch DESIGN.md exists: list each existing CSS token that must change to match Stitch.
+Format: `token: current_value → stitch_value`. If no conflicts: "All tokens aligned."}
+{If no Stitch: "Not applicable — no Stitch design system."}
 
 ---
 

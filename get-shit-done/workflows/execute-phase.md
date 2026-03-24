@@ -119,7 +119,7 @@ checkpoints between tasks. The user can review, modify, or redirect work at any 
 
    b. **If "Review first":** Read and display the full plan file. Ask again: Execute, Modify, Skip.
 
-   c. **If "Execute":** Read and follow `~/.claude/get-shit-done/workflows/execute-plan.md` **inline**
+   c. **If "Execute":** Read and follow `$HOME/.claude/get-shit-done/workflows/execute-plan.md` **inline**
       (do NOT spawn a subagent). Execute tasks one at a time.
 
    d. **After each task:** Pause briefly. If the user intervenes (types anything), stop and address
@@ -242,10 +242,10 @@ Execute each selected wave in sequence. Within a wave: parallel if `PARALLELIZAT
        </parallel_execution>
 
        <execution_context>
-       @~/.claude/get-shit-done/workflows/execute-plan.md
-       @~/.claude/get-shit-done/templates/summary.md
-       @~/.claude/get-shit-done/references/checkpoints.md
-       @~/.claude/get-shit-done/references/tdd.md
+       @$HOME/.claude/get-shit-done/workflows/execute-plan.md
+       @$HOME/.claude/get-shit-done/templates/summary.md
+       @$HOME/.claude/get-shit-done/references/checkpoints.md
+       @$HOME/.claude/get-shit-done/references/tdd.md
        </execution_context>
 
        <files_to_read>
@@ -256,6 +256,8 @@ Execute each selected wave in sequence. Within a wave: parallel if `PARALLELIZAT
        - .planning/config.json (Config, if exists)
        - ./CLAUDE.md (Project instructions, if exists — follow project-specific guidelines and coding conventions)
        - .claude/skills/ or .agents/skills/ (Project skills, if either exists — list skills, read SKILL.md for each, follow relevant rules during implementation)
+       - .stitch/DESIGN.md (Stitch design system — if exists AND plan modifies frontend/UI files. Stitch tokens are authoritative for colors, typography, spacing, and layout)
+       - {phase_dir}/*-UI-SPEC.md (UI design contract — if exists AND plan modifies frontend/UI files. Contains color map, typography scale, layout contract, and component specs)
        </files_to_read>
 
        <mcp_tools>
@@ -791,7 +793,7 @@ STOP. Do not proceed to auto-advance or transition.
 
 Execute the transition workflow inline (do NOT use Task — orchestrator context is ~10-15%, transition needs phase completion data already in context):
 
-Read and follow `~/.claude/get-shit-done/workflows/transition.md`, passing through the `--auto` flag so it propagates to the next phase invocation.
+Read and follow `$HOME/.claude/get-shit-done/workflows/transition.md`, passing through the `--auto` flag so it propagates to the next phase invocation.
 
 **If none of `--auto`, `AUTO_CHAIN`, or `AUTO_CFG` is true:**
 
