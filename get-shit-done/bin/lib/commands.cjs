@@ -1091,6 +1091,54 @@ function cmdStatusExport(cwd, raw) {
     pendingTodos = fs.readdirSync(pendingDir).filter(f => f.endsWith('.md')).length;
   } catch { /* intentionally empty */ }
 
+  // ── Archived milestones ───────────────────────────────────────────────────
+  const archivedMilestones = [];
+  try {
+    const milestonesDir = path.join(cwd, '.planning', 'milestones');
+    if (fs.existsSync(milestonesDir)) {
+      const entries = fs.readdirSync(milestonesDir, { withFileTypes: true });
+
+      // Collect unique milestone versions from archived files/dirs
+      const versions = new Map();
+      for (const entry of entries) {
+        const vMatch = entry.name.match(/^(v[\d.]+)/);
+        if (!vMatch) continue;
+        const ver = vMatch[1];
+        if (!versions.has(ver)) {
+          versions.set(ver, { version: ver, artifacts: [], phases: [] });
+        }
+        const ms = versions.get(ver);
+
+        if (entry.isDirectory() && entry.name.endsWith('-phases')) {
+          // Scan archived phase dirs
+          try {
+            const phaseDirs = fs.readdirSync(path.join(milestonesDir, entry.name), { withFileTypes: true })
+              .filter(e => e.isDirectory())
+              .map(e => e.name)
+              .sort((a, b) => comparePhaseNum(a, b));
+
+            for (const dir of phaseDirs) {
+              const dm = dir.match(/^(\d+(?:\.\d+)*)-?(.*)/);
+              const phaseNum = dm ? dm[1] : dir;
+              const phaseName = dm && dm[2] ? dm[2].replace(/-/g, ' ') : '';
+              const phaseFiles = fs.readdirSync(path.join(milestonesDir, entry.name, dir));
+              const plans = phaseFiles.filter(f => f.endsWith('-PLAN.md') || f === 'PLAN.md').length;
+              const summaries = phaseFiles.filter(f => f.endsWith('-SUMMARY.md') || f === 'SUMMARY.md').length;
+
+              ms.phases.push({ number: phaseNum, name: phaseName, plans, summaries });
+            }
+          } catch { /* intentionally empty */ }
+        } else if (!entry.isDirectory()) {
+          ms.artifacts.push(entry.name);
+        }
+      }
+
+      for (const ms of versions.values()) {
+        archivedMilestones.push(ms);
+      }
+    }
+  } catch { /* intentionally empty */ }
+
   // ── Compose ──────────────────────────────────────────────────────────────
   const status = {
     generated_at: new Date().toISOString(),
@@ -1117,6 +1165,7 @@ function cmdStatusExport(cwd, raw) {
       commits: gitCommits,
       first_commit_date: gitFirstCommitDate,
     },
+    archived_milestones: archivedMilestones,
   };
 
   // Write to .planning/status.json
